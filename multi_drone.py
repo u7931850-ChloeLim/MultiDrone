@@ -361,4 +361,5 @@ class MultiDrone:
         self.set_configuration(path[-1])
 
         # Redraw scene
-        self._update_plot()
+        self._update_plot()        
+        self._plotter.interactive()

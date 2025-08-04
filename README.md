@@ -112,8 +112,8 @@ configuration = np.array([
 goal_reached = sim.is_goal(configuration)
 ```
 
-#### Path visualization
-To visualize paths, the MultiDrone class provides the ```MultiDrone.visualize_paths``` function. A path is defined as a sequence of waypoints for all drones:
+#### Environment & Path visualization
+To visualize paths, the MultiDrone class provides the ```MultiDrone.visualize_paths``` function. This function will visualize the paths of the drones in a 3D visualization. A path is defined as a sequence of waypoints for all drones:
 ```
 paths = [
     np.array([[0, 0, 0], [1, 0, 0]], dtype=np.float32), # First waypoints
@@ -123,3 +123,6 @@ paths = [
 
 sim.visualize_paths(paths)
 ```
+
+To exit the 3D visualization, select the window and press ENTER.
+To exit the 3D 

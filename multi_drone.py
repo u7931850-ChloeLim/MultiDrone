@@ -19,9 +19,18 @@ def apply_rotation(obj, euler_deg, point=(0, 0, 0)):
         obj.rotate(pitch, axis=(0, 1, 0), point=point)
         obj.rotate(yaw, axis=(0, 0, 1), point=point)
 
-def load_obstacles_from_yaml(yaml_path):
+def load_obstacles_from_yaml(yaml_path, num_drones=1):
     with open(yaml_path, 'r') as f:
         config = yaml.safe_load(f)
+
+    initial_configuration = config.get("initial_configuration", None)
+    assert initial_configuration is not None, "No initial_configuration provided"
+    assert len(initial_configuration) == num_drones, "The number of points in the initial configuration must match the number of drones"
+    for position in initial_configuration:
+        if len(position) != 3:
+            assert False, "Malformed positions in initial_configuration"
+    
+    initial_configuration = np.array(initial_configuration, dtype=np.float32)
 
     # Validate and parse bounds
     bounds_config = config.get("bounds", None)
@@ -95,7 +104,7 @@ def load_obstacles_from_yaml(yaml_path):
     manager = fcl.DynamicAABBTreeCollisionManager()
     manager.registerObjects(fcl_objects)
     manager.setup()
-    return obstacles, manager, bounds
+    return initial_configuration, obstacles, manager, bounds
 
 def load_goal_areas_from_yaml(yaml_path):
     with open(yaml_path, 'r') as f:
@@ -139,11 +148,22 @@ class MultiDrone:
         self._fcl_objects = [fcl.CollisionObject(fcl.Sphere(self._drone_radius)) for _ in range(self.N)]
 
         # Load environment from YAML
-        self._obstacles_viz, self._obstacles_collision, self._bounds = load_obstacles_from_yaml(environment_file)
+        self.configuration, self._obstacles_viz, self._obstacles_collision, self._bounds = load_obstacles_from_yaml(environment_file, num_drones=self.N)
+        self._initial_configuration = self.configuration.copy()
 
         # Load goal areas from YAML
         self._goal_viz, self._goal_positions, self._goal_radii = load_goal_areas_from_yaml(environment_file)        
         assert self._goal_positions.shape[0] == num_drones, "You must specify the sample number of goal as there are drones"
+
+        self.reset(self.configuration)
+
+    @property
+    def initial_configuration(self):
+        return self._initial_configuration
+
+    @property
+    def goal_positions(self):
+        return self._goal_positions
 
     def reset(self, configuration=None):
         """

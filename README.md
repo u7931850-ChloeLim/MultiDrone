@@ -7,13 +7,15 @@ Each drone is modelled as a sphere and can be individually positioned, checked f
 
 ## Usage
 ### Defining environments
-Before starting the MultiDrone simulator, we have to define an environment the drones operate in. The environment is defined in a YAML file, for example ```environment.yaml``` . It consists of **bounds**, **obstacles** and **goals**. Obstacles are either box, sphere or cylinder shaped, whereas goals are sphere shaped. The following example shows the definition of a bounded environment with four obstacles and two goals:
+Before starting the MultiDrone simulator, we have to define an environment the drones operate in. The environment is defined in a YAML file, for example ```environment.yaml``` . It consists of **bounds**, **initial configuration** of the drones, **obstacles** and **goals**. Obstacles are either box, sphere or cylinder shaped, whereas goals are sphere shaped. The following example shows the definition of a bounded environment with four obstacles and two goals:
 
 ```
 bounds:
   x: [0, 50] # x-bounds
   y: [0, 50] # y-bounds
   z: [0, 50] # z-bounds
+  
+initial_configuration: [[1, 1, 1], [3, 1, 1]] # The initial configuration (3D position) of all drones
 
 obstacles:
   - type: box
@@ -61,19 +63,14 @@ The constructor of the ```MultiDrone``` class provides two keyword arguments: ``
 ### Using the MultiDrone simulator
 The MultiDrone class provides several functions for collision checking, goal detection and visualization as listed below. The **configuration** of the drones is represented by a NumPy array of shape ```(num_drones, 3)```, which specifies the xyz-position of each drone in the environment.
 
-#### Resetting the simulation
-To reset the simulator to an initial configuration, we can use the ```MultiDrone.reset``` function. For instance, for an environment with two drones, we can use
+#### Obtaining the initial configuration and goal positions
+Once the simulator has been instantiated, the initial configuration & goal positions can be accessed via
+
 ```
-# Define an initial configuration
-initial_configuration = np.array([
-	[1.0, 1.0, 1.0], # The initial xyz-position of the first drone
-	[3.0, 1.0, 1.0]  # The initial xyz-position of the second drone 
-], dtype=np.float32)
+initial_configuration = sim.initial_configuration
+goal_positions = sim.goal_positions
 ```
-```
-# Reset the simulator to the initial drone positions
-sim.reset(initial_configuration)
-```
+
 #### Configuration validity checking
 The MultiDrone class provides two functions for configuration validity checking: ```MultiDrone.is_valid``` and ```MultiDrone.motion_valid```. The first function checks, for a given configuration, that all drones are within the environment bounds, and none of the drones collide with an obstacles in the environment or with another drone:
 

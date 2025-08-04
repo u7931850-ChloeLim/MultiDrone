@@ -125,4 +125,3 @@ sim.visualize_paths(paths)
 ```
 
 To exit the 3D visualization, select the window and press ENTER.
-To exit the 3D 

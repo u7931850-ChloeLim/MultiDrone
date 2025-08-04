@@ -23,6 +23,24 @@ def load_obstacles_from_yaml(yaml_path):
     with open(yaml_path, 'r') as f:
         config = yaml.safe_load(f)
 
+    # Validate and parse bounds
+    bounds_config = config.get("bounds", None)
+    assert bounds_config is not None, "Missing required 'bounds' field in environment YAML"
+
+    try:
+        x_bounds = bounds_config["x"]
+        y_bounds = bounds_config["y"]
+        z_bounds = bounds_config["z"]
+        assert (
+            isinstance(x_bounds, list) and len(x_bounds) == 2 and
+            isinstance(y_bounds, list) and len(y_bounds) == 2 and
+            isinstance(z_bounds, list) and len(z_bounds) == 2
+        ), "Each bound (x, y, z) must be a list of two values"
+
+        bounds = np.array([x_bounds, y_bounds, z_bounds], dtype=np.float32)  # Shape (3, 2)
+    except (KeyError, AssertionError, ValueError) as e:
+        raise AssertionError(f"Invalid 'bounds' specification in YAML: {e}")
+
     obstacles = []
     fcl_objects = []
     obstacles_yaml = config.get("obstacles", [])
@@ -77,7 +95,7 @@ def load_obstacles_from_yaml(yaml_path):
     manager = fcl.DynamicAABBTreeCollisionManager()
     manager.registerObjects(fcl_objects)
     manager.setup()
-    return obstacles, manager
+    return obstacles, manager, bounds
 
 def load_goal_areas_from_yaml(yaml_path):
     with open(yaml_path, 'r') as f:
@@ -112,7 +130,7 @@ class MultiDrone:
         self._drone_radius = 0.3  # Sphere radius used for collision checking
 
         # Placeholder for drone positions
-        self.positions = np.zeros((self.N, 3), dtype=np.float32)
+        self.configuration = np.zeros((self.N, 3), dtype=np.float32)
 
         # Trajectories (used for visualization only)
         self.trajectories = [[] for _ in range(self.N)]
@@ -121,121 +139,131 @@ class MultiDrone:
         self._fcl_objects = [fcl.CollisionObject(fcl.Sphere(self._drone_radius)) for _ in range(self.N)]
 
         # Load environment from YAML
-        self._obstacles_viz, self._obstacles_collision = load_obstacles_from_yaml(environment_file)
+        self._obstacles_viz, self._obstacles_collision, self._bounds = load_obstacles_from_yaml(environment_file)
 
         # Load goal areas from YAML
         self._goal_viz, self._goal_positions, self._goal_radii = load_goal_areas_from_yaml(environment_file)        
         assert self._goal_positions.shape[0] == num_drones, "You must specify the sample number of goal as there are drones"
 
-    def reset(self, positions=None):
+    def reset(self, configuration=None):
         """
-        Reset all drones to the specified positions.
+        Reset all drones to the specified configuration.
 
         Args:
-            positions (np.ndarray of shape (N, 3), optional): Initial positions of all drones.
+            configuration (np.ndarray of shape (N, 3), optional): Initial configuration of all drones.
                 If None, all drones are reset to the origin [0, 0, 0].
         """
-        if positions is not None:
-            positions = np.asarray(positions, dtype=np.float32)
-            assert positions.shape == (self.N, 3), f"Expected shape ({self.N}, 3)"
-            self.positions = positions
+        if configuration is not None:
+            configuration = np.asarray(configuration, dtype=np.float32)
+            assert configuration.shape == (self.N, 3), f"Expected shape ({self.N}, 3)"
+            self.configuration = configuration
         else:
-            self.positions = np.zeros((self.N, 3), dtype=np.float32)
+            self.configuration = np.zeros((self.N, 3), dtype=np.float32)
 
         for i in range(self.N):
-            self._fcl_objects[i].setTransform(fcl.Transform(np.eye(3), self.positions[i].tolist()))
-            self.trajectories[i] = [self.positions[i].copy()]
+            self._fcl_objects[i].setTransform(fcl.Transform(np.eye(3), self.configuration[i].tolist()))
+            self.trajectories[i] = [self.configuration[i].copy()]
 
         self._init_plot()
 
-    def set_state(self, positions):
+    def set_configuration(self, configuration):
         """
-        Set the internal state of all drones to the given positions.
+        Set the internal configuration of all drones to the given configuration.
 
         Args:
-            positions (np.ndarray): Array of shape (N, 3), one position per drone.
+            configuration (np.ndarray): Array of shape (N, 3), one position per drone.
         """
-        assert positions.shape == (self.N, 3), f"Expected shape ({self.N}, 3)"
-        self.positions = positions.copy()
+        assert configuration.shape == (self.N, 3), f"Expected shape ({self.N}, 3)"
+        self.configuration = configuration.copy()
 
         for i in range(self.N):
-            self._fcl_objects[i].setTransform(fcl.Transform(np.eye(3), positions[i].tolist()))
+            self._fcl_objects[i].setTransform(fcl.Transform(np.eye(3), configuration[i].tolist()))
 
-    def collides(self, positions):
+    def is_valid(self, configuration):
         """
-        Check whether any of the drones are in collision with the environment or with each other.
+        Check whether the given configuration is valid:
+        - All drones are within bounds
+        - No drone collides with an obstacle
+        - No drone collides with another drone
 
         Args:
-            positions (np.ndarray): Array of shape (N, 3), one position per drone.
+            configuration (np.ndarray): Array of shape (N, 3), one position per drone.
 
         Returns:
-            bool: True if any drone collides with the environment or another drone.
+            bool: True if configuration is valid, False otherwise.
         """
-        assert positions.shape == (self.N, 3), f"Expected shape of positions: ({self.N}, 3)"
+        assert configuration.shape == (self.N, 3), f"Expected shape of configuration: ({self.N}, 3)"
 
-        req = fcl.CollisionRequest(num_max_contacts=1, enable_contact=False)
-        
+        # Check bounds
+        lower = self._bounds[:, 0]  # shape (3,)
+        upper = self._bounds[:, 1]  # shape (3,)
+        if not np.all((configuration >= lower) & (configuration <= upper)):
+            return False
+
         # Check drone-environment collisions
+        req = fcl.CollisionRequest(num_max_contacts=1, enable_contact=False)
         for i in range(self.N):
-            self._fcl_objects[i].setTransform(fcl.Transform(np.eye(3), positions[i].tolist()))
+            self._fcl_objects[i].setTransform(fcl.Transform(np.eye(3), configuration[i].tolist()))
             rdata = fcl.CollisionData(request=req)
             self._obstacles_collision.collide(self._fcl_objects[i], rdata, fcl.defaultCollisionCallback)
             if rdata.result.is_collision:
-                return True
+                return False
 
         # Check drone-drone collisions        
-        diffs = positions[:, np.newaxis, :] - positions[np.newaxis, :, :]  # (N, N, 3)
+        diffs = configuration[:, np.newaxis, :] - configuration[np.newaxis, :, :]  # (N, N, 3)
         dists = np.linalg.norm(diffs, axis=-1)  # (N, N)
         mask = np.triu(np.ones((self.N, self.N), dtype=bool), k=1)  # upper triangle, no diag
         if np.any(dists[mask] < 2 * self._drone_radius):
-            return True
+            return False
 
-        return False
+        return True
 
-    def motion_collides(self, positions_0, positions_1):
+    def motion_valid(self, configuration_0, configuration_1):
         """
-        Check whether any drone collides with the environment or another drone during a straight-line motion
-        from positions_0 to positions_1, using discretized interpolation.
+        Check whether the given straight-line motion between configuration_0 and configuration_1 is valid:
+        - All drones remain within bounds during the motion
+        - No drone collides with an obstacle durin the motion
+        - No drone collides with another drone during the motion        
 
         Args:
-            positions_0 (np.ndarray): Start positions of all drones, shape (N, 3).
-            positions_1 (np.ndarray): End positions of all drones, shape (N, 3).
+            configuration_0 (np.ndarray): Start positions of all drones, shape (N, 3).
+            configuration_1 (np.ndarray): End positions of all drones, shape (N, 3).
 
         Returns:
-            bool: True if any collision occurs along the path, False otherwise.
+            bool: True if the motion is valid. False otherwise.
         """
-        assert positions_0.shape == (self.N, 3), f"Expected shape of positions_0: ({self.N}, 3)"
-        assert positions_1.shape == (self.N, 3), f"Expected shape of positions_1: ({self.N}, 3)"
+        assert configuration_0.shape == (self.N, 3), f"Expected shape of configuration_0: ({self.N}, 3)"
+        assert configuration_1.shape == (self.N, 3), f"Expected shape of configuration_1: ({self.N}, 3)"
 
-        max_dist = np.linalg.norm(positions_1 - positions_0, axis=1).max()
+        max_dist = np.linalg.norm(configuration_1 - configuration_0, axis=1).max()
         if max_dist < 1e-6:
-            return self.collides(positions_0)
+            return not self.collides(configuration_0)
 
         step_size = self._drone_radius * 0.5
         num_steps = int(np.ceil(max_dist / step_size))
 
         for i in range(num_steps + 1):
             alpha = i / num_steps
-            interp = (1 - alpha) * positions_0 + alpha * positions_1
-            if self.collides(interp):
-                return True
-        return False
+            interp = (1 - alpha) * configuration_0 + alpha * configuration_1
+            if not self.is_valid(interp):
+                return False
+        return True
 
-    def is_goal(self, positions: np.ndarray) -> bool:
+    def is_goal(self, configuration: np.ndarray) -> bool:
         """
-        Check whether all drones are inside their respective goal areas.
+        Check whether all drones are inside their respective goal areas for the given configuration
 
         Args:
-            positions (np.ndarray): Array of shape (N, 3) containing drone positions.
+            configuration (np.ndarray): Array of shape (N, 3) containing drone configuration.
 
         Returns:
             bool: True if all drones are inside their corresponding goal spheres.
         """
         assert hasattr(self, "_goal_positions") and hasattr(self, "_goal_radii"), \
             "Goal positions and radii must be set before calling is_goal()."
-        assert positions.shape == (self.N, 3), f"Expected positions shape ({self.N}, 3)"
+        assert configuration.shape == (self.N, 3), f"Expected configuration shape ({self.N}, 3)"
 
-        distances = np.linalg.norm(positions - self._goal_positions, axis=1)
+        distances = np.linalg.norm(configuration - self._goal_positions, axis=1)
         return np.all(distances <= self._goal_radii) 
 
     def _init_plot(self):
@@ -274,7 +302,7 @@ class MultiDrone:
     def _update_plot(self):
         arm_len = 0.5
         for i in range(self.N):
-            pos = self.positions[i]
+            pos = self.configuration[i]
             body, arm1, arm2, traj = self._drone_visuals[i]
 
             # Update arms
@@ -330,7 +358,7 @@ class MultiDrone:
             self._drone_visuals[i] = (self._drone_visuals[i][0], arm1, arm2, new_traj)
 
         # Move drones to final state
-        self.set_state(path[-1])
+        self.set_configuration(path[-1])
 
         # Redraw scene
         self._update_plot()

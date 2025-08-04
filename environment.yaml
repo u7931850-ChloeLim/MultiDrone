@@ -1,3 +1,8 @@
+bounds:
+  x: [0, 50] # x-bounds
+  y: [0, 50] # y-bounds
+  z: [0, 50] # z-bounds
+
 obstacles:
   - type: box
     position: [10, 10, 1] # The 3D position of the obstacle in the environment

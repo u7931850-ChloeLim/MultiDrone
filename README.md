@@ -125,3 +125,6 @@ sim.visualize_paths(paths)
 ```
 
 To exit the 3D visualization, select the window and press ENTER.
+
+#### Example script
+The file ```example.py``` provides an example script, which demonstrates the different functionalities of the MultiDrone simulator.

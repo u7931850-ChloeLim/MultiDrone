@@ -1,9 +1,16 @@
-
 # MultiDrone Simulator
 
 The `MultiDrone` class provides a simple, self-contained simulation environment for multiple drones operating in a bounded 3D space with static obstacles and goal regions.
 
 Each drone is modelled as a sphere and can be individually positioned, checked for collisions, and visualized along a planned trajectory.
+
+## Requirements
+The following Python libraries are required:
+ - [NumPy](https://numpy.org/)
+ - [python-fcl](https://pypi.org/project/python-fcl/0.0.7/)
+ - [PyYAML](https://pypi.org/project/PyYAML/)
+ - [SciPy](https://scipy.org/)
+ - [Vedo](https://pypi.org/project/vedo/)
 
 ## Usage
 ### Defining environments

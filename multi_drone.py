@@ -257,7 +257,7 @@ class MultiDrone:
 
         max_dist = np.linalg.norm(configuration_1 - configuration_0, axis=1).max()
         if max_dist < 1e-6:
-            return not self.collides(configuration_0)
+            return self.is_valid(configuration_0)
 
         step_size = self._drone_radius * 0.5
         num_steps = int(np.ceil(max_dist / step_size))

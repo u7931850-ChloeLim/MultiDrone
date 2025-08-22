@@ -4,7 +4,7 @@ from rrt_planner import rrt
 
 def main():
     # 1) Create the simulation with 2 drones and load the environment from YAML
-    sim = MultiDrone(num_drones=2, environment_file="environment.yaml")
+    sim = MultiDrone(num_drones=2, environment_file="environment5.yaml")
 
     # 2) Get start and goal states (shape: (N, 3))
     #    start = drones' initial positions; goal = target positions for each drone

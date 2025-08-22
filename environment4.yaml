@@ -1,0 +1,51 @@
+bounds:
+  x: [0, 50]
+  y: [0, 50]
+  z: [0, 50]
+
+initial_configuration:
+  - [5, 5, 2]
+  - [8, 5, 2]
+  - [11, 5, 2]
+  - [14, 5, 2]
+  - [17, 5, 2]
+  - [5, 8, 2]
+  - [8, 8, 2]
+  - [11, 8, 2]
+  - [14, 8, 2]
+  - [17, 8, 2]
+
+obstacles:
+  - type: box
+    position: [22, 20, 2]
+    size: [6, 8, 4]
+    rotation: [0, 0, 0]
+    color: red
+
+  - type: cylinder
+    endpoints: [[32, 15, 0], [32, 15, 12]]
+    radius: 2.0
+    rotation: [0, 0, 0]
+    color: red
+
+goals:
+  - position: [40, 34, 5]
+    radius: 1.0
+  - position: [43, 34, 5]
+    radius: 1.0
+  - position: [46, 34, 5]
+    radius: 1.0
+  - position: [49, 34, 5]
+    radius: 1.0
+  - position: [40, 37, 5]
+    radius: 1.0
+  - position: [43, 37, 5]
+    radius: 1.0
+  - position: [46, 37, 5]
+    radius: 1.0
+  - position: [49, 37, 5]
+    radius: 1.0
+  - position: [41, 40, 5]
+    radius: 1.0
+  - position: [46, 40, 5]
+    radius: 1.0

@@ -1,3 +1,5 @@
+# Part B.5 - 6 Drones, and 2 obstacles
+
 bounds:
   x: [0, 50]
   y: [0, 50]
